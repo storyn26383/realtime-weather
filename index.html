@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+	<title></title>
+</head>
+<body>
+
+<div class="panel panel-default panel-template">
+	<div class="panel-heading">
+		<h4 class="panel-title">
+			<a data-toggle="collapse" data-parent="#accordion"></a>
+		</h4>
+	</div>
+	<div class="panel-collapse collapse">
+		<div class="panel-body">
+		</div>
+	</div>
+</div>
+
+<div class="row row-template">
+	<div class="col-md-2 datetime"></div>
+	<div class="col-md-2 Wx"></div>
+	<div class="col-md-2 Temp">氣溫：<span></span> &deg;C</div>
+	<div class="col-md-2 PoP">降雨機率：<span></span> %</div>
+	<div class="col-md-2 CI"></div>
+</div>
+
+<div class="container">
+	<div class="panel-group" id="accordion"></div>
+</div>
+
+<link rel="stylesheet" href="./bootstrap-3.2.0/css/bootstrap.min.css">
+<link rel="stylesheet" href="./bootstrap-3.2.0/css/bootstrap-theme.min.css">
+
+<style>
+	body {
+		margin: 30px 0;
+	}
+
+	.panel-body .row > div {
+		height: 25px;
+		line-height: 25px;
+	}
+
+	.panel-template, .row-template {
+		display: none;
+	}
+</style>
+
+<script src="./js/jquery-1.11.1.min.js"></script>
+<script src="./js/jquery-dateFormat.min.js"></script>
+<script src="./js/jquery.xml2json.js"></script>
+<script src="./js/jquery.md5.js"></script>
+<script src="./js/sprintf.min.js"></script>
+<script src="./bootstrap-3.2.0/js/bootstrap.min.js"></script>
+
+<script>
+$(function () {
+	$.ajax({
+		url: './weather.php',
+		type: 'GET',
+		dataType: 'XML',
+		success: function (xml) {
+			var json = $.xml2json(xml);
+			var locationWeatherData = processWeatherData(json);
+			var $accordion = $('#accordion');
+
+			$.each(locationWeatherData, function (_location, row) {
+				var $tpl = $('.panel-template').clone();
+				var $panelCollapse = $tpl.find('.panel-collapse');
+				var $panelTitle = $tpl.find('.panel-title a');
+				var $panelBody = $tpl.find('.panel-body');
+				var _id = $.md5(_location);
+
+				$.each(row, function (index) {
+					var $rowtpl = $('.row-template').clone();
+					var $datetime = $rowtpl.find('.datetime');
+					var $Wx = $rowtpl.find('.Wx');
+					var $Temp = $rowtpl.find('.Temp span');
+					var $PoP = $rowtpl.find('.PoP span');
+					var $CI = $rowtpl.find('.CI');
+
+					$datetime.html(sprintf('<kbd>%s</kbd>', formatDateime(this.timeStart)));
+					$Wx.html(this.Wx);
+					$Temp.html(sprintf('%d ~ %d',this.MinT ,this.MaxT));
+					$PoP.html(this.PoP);
+					$CI.html(this.CI);
+
+					$rowtpl.removeClass('row-template').appendTo($panelBody);
+				});
+
+				$panelCollapse.attr('id', _id);
+				$panelTitle.attr('href', sprintf('#%s', _id)).text(_location);
+				$tpl.removeClass('panel-template').appendTo($accordion);
+			});
+		}
+	});
+});
+
+function processWeatherData(data) {
+	var _location = {};
+	var _elementProcessFunction = {
+		Wx: function (data) {
+			return data.text[0];
+		},
+		MaxT: function (data) {
+			return data.value.text;
+		},
+		MinT: function (data) {
+			return data.value.text;
+		},
+		CI: function (data) {
+			return data.text[0];
+		},
+		PoP: function (data) {
+			return data.value.text;
+		}
+	};
+
+	$.each(data.data.location, function (_locationID, _locationRow) {
+		_location[_locationRow.name] = [];
+
+		$.each(_locationRow.weather_elements, function (_elementID, _elementRow) {
+			$.each(_elementRow.time, function (_timeID, _timeRow) {
+				if (!_location[_locationRow.name][_timeID]) {
+					_location[_locationRow.name][_timeID] = {
+						timeStart: new Date(_timeRow.start),
+						timeEnd: new Date(_timeRow.end)
+					};
+				}
+
+				_location[_locationRow.name][_timeID][_elementID] = _elementProcessFunction[_elementID].call(this, _timeRow);
+			});
+		});
+	});
+
+	return _location;
+}
+
+function formatDateime(date) {
+	return $.format.date(date, 'yyyy-MM-dd HH:mm:ss');
+}
+</script>
+
+</body>
+</html>
